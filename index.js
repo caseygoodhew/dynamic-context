@@ -1,36 +1,42 @@
-const _ = require('lodash');
+const _ = require("lodash");
 
-module.exports = function(_references) {
+module.exports = function(...args) {
+    const _references = _(args)
+        .castArray()
+        .flatten()
+        .value();
 
-    if (!_.isArray(_references)) {
-        throw new TypeError('constructor parameter must be and array');
-    }
-
-    if (!_.every(_references, x => {
-            return typeof x === 'string' && x.length;
-        })) {
-        throw new TypeError('constructor parameter array must contain only strings');
+    if (
+        !_.every(_references, x => {
+            return typeof x === "string" && x.length;
+        })
+    ) {
+        throw new TypeError(
+            "constructor parameter array must contain only strings"
+        );
     }
 
     if (!_references.length) {
-        throw new TypeError('constructor parameter array cannot be empty');
+        throw new TypeError("constructor parameter array cannot be empty");
     }
 
     const references = [].concat(_references);
 
     const context = function(values, _parent) {
-
         const rebuild = (index, value, parent) => {
-            return context(references.map((p, i) => i === index ? value : values[i]), parent)
-        }
+            return context(
+                references.map((p, i) => (i === index ? value : values[i])),
+                parent
+            );
+        };
 
-        const handler = (index, parent) => (value) => {
+        const handler = (index, parent) => value => {
             if (value === undefined) {
                 return values[index];
             }
 
             return rebuild(index, value, parent);
-        }
+        };
 
         const _set = parent => (elem, name, value) => {
             const index = _.indexOf(references, elem);
@@ -48,19 +54,30 @@ module.exports = function(_references) {
                 } else {
                     return newValue === undefined ? name : newValue;
                 }
-            }
+            };
 
             return rebuild(index, getVal(values[index], name, value), parent);
         };
 
+        const _get = current => elem => {
+            const index = _.indexOf(references, elem);
+
+            if (index === -1) {
+                throw new Error(`context does not have a '${elem}' attribute`);
+            }
+
+            return current[elem]();
+        };
+
         const instance = {};
         instance.set = _set(instance);
-        instance.parent = () => _parent
+        instance.get = _get(instance);
+        instance.parent = () => _parent;
 
-        references.forEach((x, i) => instance[x] = handler(i, instance));
+        references.forEach((x, i) => (instance[x] = handler(i, instance)));
 
         return instance;
-    }
+    };
 
     return context([]);
-}
+};
